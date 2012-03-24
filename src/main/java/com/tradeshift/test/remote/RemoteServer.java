@@ -19,6 +19,8 @@ import org.junit.runner.manipulation.NoTestsRemainException;
 import org.junit.runner.notification.Failure;
 import org.junit.runner.notification.RunListener;
 import org.junit.runner.notification.RunNotifier;
+import org.kohsuke.args4j.CmdLineException;
+import org.kohsuke.args4j.CmdLineParser;
 
 import com.tradeshift.test.remote.internal.LineBreakingStream;
 import com.tradeshift.test.remote.internal.RedirectingStream;
@@ -35,7 +37,17 @@ public class RemoteServer {
         err = new RedirectingStream(System.err);
         System.setErr(new PrintStream(err));
         
-        Server server = new Server(4578);
+		Options opts = new Options();
+		CmdLineParser parser = new CmdLineParser(opts);
+		try {
+			parser.parseArgument(args);
+		} catch (CmdLineException e) {
+			System.err.println(e.getMessage());
+			parser.printUsage(System.err);
+			System.exit(-1);
+		}
+
+        Server server = new Server(opts.getPort());
 
         
         server.setHandler(new AbstractHandler() {
@@ -86,7 +98,7 @@ public class RemoteServer {
         
         server.start();
         
-        System.out.println("Server running at http://localhost:4578/");
+        System.out.println("Server running at http://localhost:" + opts.getPort());
         server.join();
     }
     
