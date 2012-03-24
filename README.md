@@ -19,6 +19,7 @@ Setting up:
 - Add @RunWith(RemoteTestRunner.class) to your test classes.  The annotation can be placed on a superclass.
 - Optionally @Remote to specify the location of the remote server as well as the test runner to use.
 - Start the remote server. This can be done from an Ant script - this script assumes that the init target sets up the classpath properly:
+
 	<target name="runtest" depends="init">
 		<java classname="com.tradeshift.test.remote.RemoteServer" classpathref="classpath" fork="true">
 			<classpath>
