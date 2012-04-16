@@ -57,9 +57,11 @@ public class RemoteServer {
                     final Class<?> testClass = getTestClass(request);
 
                     String method = request.getMethod();
+                    response.setBufferSize(512);
                     final ServletOutputStream pw = response.getOutputStream();
                     if ("POST".equalsIgnoreCase(method)) {
                         response.setStatus(200);
+                        response.flushBuffer();
                         
                         final Runner runner = Utils.createRunner(request.getParameter("runner"), testClass);
                         if (request.getParameter("method") != null) {

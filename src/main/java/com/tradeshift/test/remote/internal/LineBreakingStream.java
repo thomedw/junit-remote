@@ -23,6 +23,7 @@ public class LineBreakingStream extends OutputStream {
         delegate.write(b);
         if (b == '\n' || b == '\r') {
             newline = true;
+            delegate.flush();
         }
     }
     
