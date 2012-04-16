@@ -7,10 +7,8 @@ It supports any existing runner, and will fall back to running tests locally if 
 
 Why would you want to do this?
 ------------------------------
-Primary reason: If you're using [JRebel](http://zeroturnaround.com/jrebel/) you are probably used to being able to get code changes into your running server fast. But what about running tests?
-
-Starting up a remote JUnit server with JRebel enabled, you'll get all the benefits of using JRebel also when writing tests. Of course, this is mostly relevant when writing
-integration tests, for example in Spring, which need to boot up an application context to run the test.
+- If you're using [JRebel](http://zeroturnaround.com/jrebel/) you are probably used to being able to get code changes into your running server fast. But what about running tests? Starting up a remote JUnit server with JRebel enabled, you'll get all the benefits of using JRebel also when writing tests. Of course, this is mostly relevant when writing integration tests, for example in Spring, which need to boot up an application context to run the test.
+- If you have a big collection of tests, and you want to run them concurrently on a cloud-ish manner
 
 Setting up:
 -----------
@@ -35,6 +33,15 @@ This script assumes that the init target sets up the classpath properly:
 
 - Run any test from Maven, Eclipse or whatever you are used to.
 
+Concurrent execution
+--------------------
+
+The remote runner also supports concurrent execution. This is toggled automatically if the @Remote endpoint points to a comma-separated list of urls. 
+
+In that case, each url will be run concurrently. If you have zero state in your tests, you can set the same url more times to run concurrently against the same instance.
+
+Complete example
+----------------
 To use with JRebel, simply add the JRebel agent as a <jvmarg>. Here's a complete example:
 
 	<target name="runtest" depends="init">
