@@ -26,9 +26,6 @@ public class RemoteTestRunner extends Runner implements Filterable, Sortable {
 
     private Runner delegate;
 
-//    private String endpoint;
-//    private Class<? extends Runner> remoteRunnerClass;
-
     public RemoteTestRunner(Class<?> clazz) throws InitializationError {
         Remote remote = Utils.findAnnotation(clazz, Remote.class);
         String endpoint;
@@ -41,24 +38,29 @@ public class RemoteTestRunner extends Runner implements Filterable, Sortable {
             remoteRunnerClass = BlockJUnit4ClassRunner.class;
         }
         log.debug("Trying remote server {} with runner {}", endpoint, remoteRunnerClass.getName());
-        URI uri = URI.create(endpoint);
-        
-        try {
-            Socket s = new Socket(uri.getHost(), uri.getPort());
-            s.close();
-            
-            try {
-                delegate = new InternalRemoteRunner(clazz, endpoint, remoteRunnerClass);
-                log.debug("Using remote server at {}", endpoint);
-            } catch (Throwable t) {
-                t.printStackTrace();
-                throw new RuntimeException(t);
-            }
-        } catch (IOException e) {
-            delegate = Utils.createRunner(remoteRunnerClass, clazz);
+        if (isAnyRemoteUp(endpoint)) {
+            delegate = new InternalRemoteRunner(clazz, endpoint, remoteRunnerClass);
+        } else {
+        	delegate = Utils.createRunner(remoteRunnerClass, clazz);
         }
-        
     }
+    
+    private boolean isAnyRemoteUp(String eps) {
+    	for (String ep : eps.split(",")) {
+    		URI uri = URI.create(ep.trim());
+    		
+    		try {
+    			Socket s = new Socket(uri.getHost(), uri.getPort());
+    			s.close();
+    			
+    			return true;
+    		} catch (IOException e) {
+    		}
+		}
+
+    	return false;
+    }
+    
     
 
     @Override

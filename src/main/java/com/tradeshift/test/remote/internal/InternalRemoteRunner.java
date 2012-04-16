@@ -4,6 +4,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.net.ConnectException;
 import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.URL;
@@ -14,29 +15,30 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import junit.framework.AssertionFailedError;
 
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.Description;
 import org.junit.runner.Runner;
 import org.junit.runner.manipulation.Filter;
-import org.junit.runner.manipulation.Filterable;
 import org.junit.runner.manipulation.NoTestsRemainException;
-import org.junit.runner.manipulation.Sortable;
 import org.junit.runner.manipulation.Sorter;
 import org.junit.runner.notification.Failure;
 import org.junit.runner.notification.RunNotifier;
+import org.junit.runners.BlockJUnit4ClassRunner;
 import org.junit.runners.model.FrameworkMethod;
+import org.junit.runners.model.InitializationError;
+import org.junit.runners.model.RunnerScheduler;
 import org.junit.runners.model.TestClass;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class InternalRemoteRunner extends Runner implements Sortable, Filterable {
+public class InternalRemoteRunner extends BlockJUnit4ClassRunner {
 	
 	private static final Logger log = LoggerFactory.getLogger(InternalRemoteRunner.class);
 
@@ -47,20 +49,10 @@ public class InternalRemoteRunner extends Runner implements Sortable, Filterable
     private final Class<?> testClass;
     private Class<? extends Runner> remoteRunnerClass;
     private static ExecutorService executorService;
-    static {
-    	Runtime.getRuntime().addShutdownHook(new Thread(new Runnable() {
-			@Override
-			public void run() {
-				executorService.shutdown();
-				try {
-					executorService.awaitTermination(1, TimeUnit.MINUTES);
-					System.out.println("done");
-				} catch (InterruptedException e) {}
-			}
-		}));
-    }
+    private static AtomicInteger runningCount = new AtomicInteger(0);
 
-    public InternalRemoteRunner(Class<?> testClass, String endpoint, Class<? extends Runner> remoteRunnerClass) {
+    public InternalRemoteRunner(Class<?> testClass, String endpoint, Class<? extends Runner> remoteRunnerClass) throws InitializationError {
+    	super(testClass);
         this.testClass = testClass;
 		this.remoteRunnerClass = remoteRunnerClass;
         TestClass tc = new TestClass(testClass);
@@ -87,8 +79,27 @@ public class InternalRemoteRunner extends Runner implements Sortable, Filterable
         	}
         	executorService = Executors.newFixedThreadPool(endpoints.size());
         }
+        
+        setScheduler(new RunnerScheduler() {
+			@Override
+			public void schedule(Runnable childStatement) {
+				runningCount.incrementAndGet();
+				executorService.submit(childStatement);
+			}
+			
+			@Override
+			public void finished() {
+				while (runningCount.get() > 0) {
+					try {
+						Thread.sleep(100);
+					} catch (InterruptedException e) {
+						Thread.currentThread().interrupt();
+					}
+				}
+			}
+		});
     }
-    
+
     @Override
     public void filter(Filter filter) throws NoTestsRemainException {
         List<Description> children = description.getChildren();
@@ -118,58 +129,51 @@ public class InternalRemoteRunner extends Runner implements Sortable, Filterable
     }
 
     @Override
-    public void run(final RunNotifier notifier) {
-        notifier.fireTestRunStarted(description);
-        ArrayList<Description> children = description.getChildren();
-        final CountDownLatch latch = new CountDownLatch(children.size());
-        for (final Description description : children) {
-            executorService.submit(new Runnable() {
-				@Override
-				public void run() {
-					try {
-						notifier.fireTestStarted(description);
-						String methodName = methodNames.get(description);
-						HttpURLConnection connection = getUrl(methodName, "POST");
-						connection.connect();
-						handleError(connection);
-						
-						String enc = connection.getContentEncoding();
-						if (enc == null) enc = "ISO-8859-1";
-						InputStream is = connection.getInputStream();
-						BufferedReader reader = new BufferedReader(new InputStreamReader(is, Charset.forName(enc)));
-						String line = null;
-						while ((line = reader.readLine()) != null) {
-							if (line.startsWith("E")) {
-								System.err.println(line.substring(1).trim());
-							} else if (line.startsWith("O")) {
-								System.out.println(line.substring(1).trim());
-							} else if (line.startsWith("RSUCCESS")) {
-								break;
-							} else if (line.startsWith("RERROR")) {
-								StringBuilder error = new StringBuilder(line.substring(6));
-								while ((line = reader.readLine()) != null) {
-									error.append(line).append("\n");
-								}
-								throw new AssertionFailedError(error.toString());
-							} else {
-								log.error("Protocol error in response: {}", line);
-							}
-						}
-						is.close();
-						connection.disconnect();
-					} catch (Throwable e) {
-						e.printStackTrace();
-						notifier.fireTestFailure(new Failure(description, e));
-					} finally {
-						notifier.fireTestFinished(description);
-						latch.countDown();
-					}
-				}
-			});
-        }
-        try {
-			latch.await(10, TimeUnit.MINUTES);
-		} catch (InterruptedException e) {}
+    protected void runChild(FrameworkMethod method, RunNotifier notifier) {
+    	Description description = describeChild(method);
+    	if (method.getAnnotation(Ignore.class) != null) {
+    		notifier.fireTestIgnored(description);
+    		return;
+    	}
+
+    	try {
+    		notifier.fireTestStarted(description);
+    		String methodName = method.getName();
+    		HttpURLConnection connection = getUrl(methodName, "POST");
+    		handleError(connection);
+
+    		String enc = connection.getContentEncoding();
+    		if (enc == null) enc = "ISO-8859-1";
+    		InputStream is = connection.getInputStream();
+    		BufferedReader reader = new BufferedReader(new InputStreamReader(is, Charset.forName(enc)));
+    		String line = null;
+    		while ((line = reader.readLine()) != null) {
+    			if (line.startsWith("E")) {
+    				System.err.println(line.substring(1).trim());
+    			} else if (line.startsWith("O")) {
+    				System.out.println(line.substring(1).trim());
+    			} else if (line.startsWith("RSUCCESS")) {
+    				break;
+    			} else if (line.startsWith("RERROR")) {
+    				StringBuilder error = new StringBuilder(line.substring(6));
+    				while ((line = reader.readLine()) != null) {
+    					error.append(line).append("\n");
+    				}
+    				throw new AssertionFailedError(error.toString());
+    			} else {
+    				log.error("Protocol error in response: {}", line);
+    			}
+    		}
+    		is.close();
+    		connection.disconnect();
+    	} catch (Throwable e) {
+    		e.printStackTrace();
+    		notifier.fireTestFailure(new Failure(description, e));
+    	} finally {
+    		notifier.fireTestFinished(description);
+    		runningCount.decrementAndGet();
+    	}
+
     }
     
     private void handleError(HttpURLConnection connection) throws IOException{
@@ -187,24 +191,33 @@ public class InternalRemoteRunner extends Runner implements Sortable, Filterable
     }
     
     private HttpURLConnection getUrl(String methodName, String httpMethod) {
-        String ep = endpoints.get(currentEndpoint++ % endpoints.size());
-        if (!ep.endsWith("/")) {
-            ep = ep + "/";
-        }
-        try {
-        	
-            HttpURLConnection connection = (HttpURLConnection) new URL(ep + testClass.getName() + "?method=" + methodName + "&runner=" + remoteRunnerClass.getName()).openConnection();
-            connection.setReadTimeout(120000);
-            connection.setAllowUserInteraction(false);
-            connection.setUseCaches(false);
-            connection.setRequestMethod(httpMethod);
-            connection.setRequestProperty("Connection", "close");
-            return connection;
-        } catch (MalformedURLException e) {
-            throw new RuntimeException("Unable to create remote url", e);
-        } catch (IOException e) {
-            throw new RuntimeException("Unable to connect", e);
-        }
+    	int count = 0;
+    	while (count < endpoints.size() * 2) {
+    		String ep = endpoints.get(currentEndpoint++ % endpoints.size());
+    		if (!ep.endsWith("/")) {
+    			ep = ep + "/";
+    		}
+    		try {
+
+    			HttpURLConnection connection = (HttpURLConnection) new URL(ep + testClass.getName() + "?method=" + methodName + "&runner=" + remoteRunnerClass.getName()).openConnection();
+    			connection.setReadTimeout(120000);
+    			connection.setAllowUserInteraction(false);
+    			connection.setUseCaches(false);
+    			connection.setRequestMethod(httpMethod);
+    			connection.setRequestProperty("Connection", "close");
+    			connection.connect();
+
+    			return connection;
+    		} catch (MalformedURLException e) {
+    			throw new RuntimeException("Unable to create remote url", e);
+    		} catch (ConnectException e) {
+    			log.warn("Skipping host {}", ep);
+    			count++;
+    		} catch (IOException e) {
+    			throw new RuntimeException("Unable to connect", e);
+    		}
+    	}
+    	throw new RuntimeException("No hosts available");
     }
 
 }
