@@ -9,34 +9,27 @@ import java.lang.reflect.InvocationTargetException;
 
 import org.junit.runner.Runner;
 import org.junit.runner.manipulation.Filter;
+import org.junit.runner.manipulation.Filterable;
 import org.junit.runner.manipulation.NoTestsRemainException;
+import org.junit.runner.manipulation.Sortable;
 import org.junit.runner.manipulation.Sorter;
 
 public class Utils {
 
     public static void filter(Runner runner, Filter filter) throws NoTestsRemainException {
-        try {
-            runner.getClass().getMethod("filter", Filter.class).invoke(runner, filter);
-        } catch (InvocationTargetException e) {
-            if (e.getCause() instanceof NoTestsRemainException) {
-                throw (NoTestsRemainException)e.getCause();
-            } else {
-                throw new RuntimeException(e.getTargetException());
-            }
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
+		if (runner instanceof Filterable) {
+			Filterable filterable = (Filterable) runner;
+			filterable.filter(filter);
+		}
     }
     
     public static void sort(Runner runner, Sorter sorter) {
-        try {
-            runner.getClass().getMethod("sort", Sorter.class).invoke(runner, sorter);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
+		if (runner instanceof Sortable) {
+			Sortable sortable = (Sortable) runner;
+			sortable.sort(sorter);
+		}
     }
 
-    
     public static String toString(InputStream in) throws IOException {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         byte[] b = new byte[16384];

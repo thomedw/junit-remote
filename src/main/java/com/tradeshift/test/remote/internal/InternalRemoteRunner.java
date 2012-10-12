@@ -102,6 +102,7 @@ public class InternalRemoteRunner extends BlockJUnit4ClassRunner {
 
     @Override
     public void filter(Filter filter) throws NoTestsRemainException {
+		super.filter(filter);
         List<Description> children = description.getChildren();
 
         Iterator<Description> itr = children.iterator();
@@ -136,9 +137,15 @@ public class InternalRemoteRunner extends BlockJUnit4ClassRunner {
     		return;
     	}
 
+		String methodName = method.getName();
+		String allowedMethodName = methodNames.get(description);
+		if (methodName != null && !methodName.equals(allowedMethodName)) {
+//			notifier.fireTestIgnored(description);
+			return;
+		}
+
     	try {
     		notifier.fireTestStarted(description);
-    		String methodName = method.getName();
     		HttpURLConnection connection = getUrl(methodName, "POST");
     		handleError(connection);
 
