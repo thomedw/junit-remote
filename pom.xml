@@ -1,10 +1,21 @@
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+		 xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>com.tradeshift</groupId>
 	<artifactId>junit-remote</artifactId>
 	<packaging>jar</packaging>
 	<name>Remote JUnit runner</name>
-	<version>3</version>
+	<version>3.0-SNAPSHOT</version>
+	<scm>
+		<connection>scm:git:git@github.com:thomedw/junit-remote.git</connection>
+	</scm>
+	<properties>
+		<!--
+			 Explicitly declaring the source encoding eliminates the following message:
+			 [WARNING] Using platform encoding (UTF-8 actually) to copy filtered resources, i.e. build is platform dependent!
+		  -->
+		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+	</properties>
 	<dependencies>
 		<dependency>
 			<groupId>org.slf4j</groupId>
@@ -16,39 +27,52 @@
 			<artifactId>junit</artifactId>
 			<version>4.8</version>
 		</dependency>
-        <dependency>
-            <groupId>org.eclipse.jetty</groupId>
-            <artifactId>jetty-servlet</artifactId>
-            <version>7.4.0.v20110414</version>
-        </dependency>
+		<dependency>
+			<groupId>org.eclipse.jetty</groupId>
+			<artifactId>jetty-servlet</artifactId>
+			<version>7.4.0.v20110414</version>
+		</dependency>
 		<dependency>
 			<groupId>args4j</groupId>
 			<artifactId>args4j</artifactId>
 			<version>2.0.16</version>
 		</dependency>
 	</dependencies>
-    <build>
-        <plugins>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-compiler-plugin</artifactId>
-                <version>2.3.2</version>
-                <configuration>
-                    <source>1.6</source>
-                    <target>1.6</target>
-                </configuration>
-            </plugin>
-            <plugin>
-            <!-- NOTE: We don't need a groupId specification because the group is
-                org.apache.maven.plugins ...which is assumed by default.
-            -->
-            <artifactId>maven-assembly-plugin</artifactId>
-            <version>2.3</version>
-            <configuration>
-                <descriptorRefs>
-                    <descriptorRef>jar-with-dependencies</descriptorRef>
-                </descriptorRefs>
-            </configuration></plugin>
-        </plugins>
-    </build>
+	<build>
+		<plugins>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-compiler-plugin</artifactId>
+				<version>2.3.2</version>
+				<configuration>
+					<source>1.6</source>
+					<target>1.6</target>
+				</configuration>
+			</plugin>
+			<plugin>
+				<!-- NOTE: We don't need a groupId specification because the group is
+					org.apache.maven.plugins ...which is assumed by default.
+				-->
+				<artifactId>maven-assembly-plugin</artifactId>
+				<version>2.3</version>
+				<configuration>
+					<descriptorRefs>
+						<descriptorRef>jar-with-dependencies</descriptorRef>
+					</descriptorRefs>
+				</configuration>
+			</plugin>
+		</plugins>
+	</build>
+	<distributionManagement>
+		<repository>
+			<id>deploymentRepo</id>
+			<name>Internal Releases</name>
+			<url>http://nexus.katalisindonesia.com/nexus/content/repositories/releases</url>
+		</repository>
+		<snapshotRepository>
+			<id>deploymentRepo</id>
+			<name>Internal Releases</name>
+			<url>http://nexus.katalisindonesia.com/nexus/content/repositories/snapshots</url>
+		</snapshotRepository>
+	</distributionManagement>
 </project>
