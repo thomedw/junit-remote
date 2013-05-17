@@ -49,7 +49,7 @@ public class InternalRemoteRunner
 	private final Class<?> testClass;
 	private Class<? extends Runner> remoteRunnerClass;
 	private static ExecutorService executorService;
-	private static final Semaphore SEMAPHORE = new Semaphore(1);
+	private static final ReducibleSemaphore SEMAPHORE = new ReducibleSemaphore();
 
 	public InternalRemoteRunner(Class<?> testClass, String endpoint, Class<? extends Runner> remoteRunnerClass)
 			throws InitializationError {
@@ -84,9 +84,9 @@ public class InternalRemoteRunner
 		setScheduler(
 				new RunnerScheduler() {
 					@Override
-					public void schedule(Runnable childStatement) {
-						SEMAPHORE.release(-1);
-						executorService.submit(childStatement);
+					public void schedule(final Runnable childStatement) {
+						SEMAPHORE.reducePermits(1);
+						executorService.submit(new SemaphoreDelegate(childStatement));
 					}
 
 					@Override
@@ -135,7 +135,6 @@ public class InternalRemoteRunner
 		Description description = describeChild(method);
 		if (method.getAnnotation(Ignore.class) != null) {
 			notifier.fireTestIgnored(description);
-			SEMAPHORE.release();
 			return;
 		}
 
@@ -143,7 +142,6 @@ public class InternalRemoteRunner
 		String allowedMethodName = methodNames.get(description);
 		if (methodName != null && !methodName.equals(allowedMethodName)) {
 //			notifier.fireTestIgnored(description);
-			SEMAPHORE.release();
 			return;
 		}
 
@@ -181,7 +179,6 @@ public class InternalRemoteRunner
 			notifier.fireTestFailure(new Failure(description, e));
 		} finally {
 			notifier.fireTestFinished(description);
-			SEMAPHORE.release();
 		}
 
 	}
@@ -233,5 +230,32 @@ public class InternalRemoteRunner
 		throw new RuntimeException("No hosts available");
 	}
 
+	private static class SemaphoreDelegate
+			implements Runnable {
+		private final Runnable childStatement;
+
+		public SemaphoreDelegate(Runnable childStatement) {this.childStatement = childStatement;}
+
+		@Override
+		public void run() {
+			try {
+				childStatement.run();
+			} finally {
+				SEMAPHORE.release();
+			}
+		}
+	}
+
+	private static class ReducibleSemaphore
+			extends Semaphore {
+		private static final long serialVersionUID = 1L;
+
+		public ReducibleSemaphore() {super(1);}
+
+		@Override
+		public void reducePermits(int reduction) {
+			super.reducePermits(reduction);
+		}
+	}
 }
 
