@@ -93,6 +93,7 @@ public class InternalRemoteRunner
 					public void finished() {
 						try {
 							SEMAPHORE.acquire();
+							SEMAPHORE.release();
 						} catch (InterruptedException ignore) {
 							Thread.currentThread().interrupt();
 						}
@@ -234,7 +235,7 @@ public class InternalRemoteRunner
 			implements Runnable {
 		private final Runnable childStatement;
 
-		public SemaphoreDelegate(Runnable childStatement) {this.childStatement = childStatement;}
+		SemaphoreDelegate(Runnable childStatement) {this.childStatement = childStatement;}
 
 		@Override
 		public void run() {
